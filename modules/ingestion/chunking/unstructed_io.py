@@ -1,12 +1,14 @@
 from unstructured.chunking.title import chunk_by_title
 from unstructured.partition.pdf import partition_pdf
 from unstructured.partition.doc import partition_docx
-from unstructured.documents.elements import Element
 from typing import Optional, List
 
 
 
-def partition_pdf_to_element(name_file_pdf: str, file_type):
+def _partition_to_element(
+        name_file_pdf: str, 
+        file_type: str = 'pdf'
+):
     """
     Partitioning functions in unstructured allow users to extract structured content from a raw unstructured document. 
     These functions break a document down into elements such as Title, NarrativeText, and ListItem, enabling users 
@@ -29,32 +31,39 @@ def partition_pdf_to_element(name_file_pdf: str, file_type):
             extract_image_block_output_dir=f'./image/{name_file_pdf}',
         )
     
+
     elif file_type == 'docx':
         
         return partition_docx(
             # Path of file pdf
             filename= f'./data/{name_file_pdf}',
-            infer_table_structure=True
+            # Use layout model (YOLOX) to get bounding boxes (for tables) and find titles
+            # If True, any Table elements have a metadata field named "text_as_html" where the table's content is rendered into an html string 
+            infer_table_structure = True,
+            include_page_breaks=True
         )
 
 
-def chunking_pdf(
+def chunking_to_get_table_image(
         name_file_pdf: str, 
         file_type: str,
-        max_characters: int = 10**5,
+        max_characters: int = 10**8,
         new_after_n_chars: Optional[int] = None,
         overlap: int = 0,
         overlap_all: bool = False,
-) -> List[Element]:
+        return_html: bool = True
+) -> List[str]:
     
     """
     Uses title elements to identify sections within the document for chunking.
     Chunking produces a sequence of CompositeElement, Table, or TableChunk elements.
+
+    But this function only return a string of html of table class. And extract Image to image'path.
     """
 
-    elements_pdf = partition_pdf_to_element(name_file_pdf, file_type)
+    elements_pdf = _partition_to_element(name_file_pdf, file_type)
 
-    return chunk_by_title(
+    chunks = chunk_by_title(
         # A list of unstructured elements. Usually the output of a partition function.
         elements=elements_pdf,
         # If True, sections can span multiple pages.
@@ -70,3 +79,10 @@ def chunking_pdf(
         # Also apply overlap between “normal” chunks, not just when text-splitting
         overlap_all = overlap_all
     )
+
+    if return_html:
+        list_html_table = [i.metadata.text_as_html for i in chunks if i.category=='Table']
+    else:
+        list_html_table = [i.text for i in chunks if i.category=='Table']
+        
+    return list_html_table

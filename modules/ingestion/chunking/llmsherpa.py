@@ -1,7 +1,7 @@
 from llmsherpa.readers import LayoutPDFReader
 from typing import List
 
-def chunking_to_get_text(name_file_pdf: str) -> List[str]:
+def chunking_to_get_text(name_file_pdf: str) -> List[dict]:
         
         """
         LayoutPDFReader does smart chunking keeping related text due to document structure together:
@@ -13,27 +13,51 @@ def chunking_to_get_text(name_file_pdf: str) -> List[str]:
         """
 
         filename = f'./data/{name_file_pdf}'
+
         # API support read pdf
         llmsherpa_api_url = "https://readers.llmsherpa.com/api/document/developer/parseDocument?renderFormat=all"
         pdf_reader = LayoutPDFReader(llmsherpa_api_url)
 
         # Reads PDF content and understands hierarchical layout of the document sections and structural components 
         docs = pdf_reader.read_pdf(filename)
-
+        
         # Get a list of sections and chunks from documents
         # A Chunk is getting from splitting the document into paragraphs, lists, and tables
         # A section is a block of text. It can have children such as paragraphs, lists, and tables. A section has tag 'header'.
         list_sections, list_chunks = docs.sections(), docs.chunks()
+        list_json_sections, list_json_chunks = [], []
 
         # If include_children True then the text of the children are also included
         # If recurse True then the text of the children's children are also included
-        text_from_sections = [list_sections[i].to_text(include_children=True, recurse=False) for i in range(len(list_sections))]
+        # Get text from sections
+        for sec in list_sections:
+
+            list_json_sections.append(
+                {
+                    'tag': 'header',
+                    'level': sec.level,
+                    'page_idx': sec.page_idx,
+                    'filename': name_file_pdf,
+                    'text': sec.to_text(include_children=True, recurse=False),
+                    'html_text': sec.to_html(include_children=True, recurse=False)
+                }
+            )
+
 
         # Get text from chunks but ignore table class, only get text from list_item and paragraph
-        text_from_chunks = []
-        for i in range(len(list_chunks)):
-            if list_chunks[i].tag in ['list_item', 'para']: #irgnore class table
-                text_from_chunks.append(list_chunks[i].to_text())
+        for chunk in list_chunks:
 
+            if chunk.tag in ['list_item', 'para']: #irgnore class table
 
-        return text_from_sections + text_from_chunks
+                list_json_chunks.append(
+                    {
+                        'tag': chunk.tag,
+                        'level': chunk.level,
+                        'page_idx': chunk.page_idx,
+                        'filename': name_file_pdf,
+                        'text': chunk.to_text(),
+                        'html_text': chunk.to_html()
+                    }
+                )
+
+        return list_json_sections + list_json_chunks

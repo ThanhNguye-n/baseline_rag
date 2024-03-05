@@ -50,20 +50,20 @@ def chunking_to_get_table_image(
         max_characters: int = 10**8,
         new_after_n_chars: Optional[int] = None,
         overlap: int = 0,
-        overlap_all: bool = False,
-        return_html: bool = True
-) -> List[str]:
+        overlap_all: bool = False
+) -> List[dict]:
     
     """
     Uses title elements to identify sections within the document for chunking.
     Chunking produces a sequence of CompositeElement, Table, or TableChunk elements.
 
     But this function only return a string of html of table class. And extract Image to image'path.
+    We only extract table so set default max_characters as 10**8 to not making table chunks
     """
 
     elements_pdf = _partition_to_element(name_file_pdf, file_type)
 
-    chunks = chunk_by_title(
+    list_chunks = chunk_by_title(
         # A list of unstructured elements. Usually the output of a partition function.
         elements=elements_pdf,
         # If True, sections can span multiple pages.
@@ -80,9 +80,22 @@ def chunking_to_get_table_image(
         overlap_all = overlap_all
     )
 
-    if return_html:
-        list_html_table = [i.metadata.text_as_html for i in chunks if i.category=='Table']
-    else:
-        list_html_table = [i.text for i in chunks if i.category=='Table']
+    list_json_table = []
+    
+    for chunk in list_chunks:
+
+        if chunk.category == 'Table':
+
+            list_json_table.append(
+                {
+                    'tag': 'table',
+                    'level': -1,
+                    'page_idx': chunk.metadata.page_number,
+                    'filename': name_file_pdf,
+                    'text': chunk.text,
+                    'html_text': chunk.metadata.text_as_html
+
+                }
+            )
         
-    return list_html_table
+    return list_json_table

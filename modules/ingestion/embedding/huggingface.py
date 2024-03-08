@@ -7,8 +7,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from transformers import AutoModel, AutoTokenizer, DataCollatorWithPadding
 from .dataset import ChunkDataset
+from typing import List
 
-class HF_Embedder:
+class Embedder:
 
     def __init__(self, model_url: str, batch_size: int=16):
         
@@ -61,7 +62,7 @@ class HF_Embedder:
         return torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
     
 
-    def embedding(
+    def embedding_documents(
         self,
         documents: list[dict],
     ) -> bool:
@@ -85,17 +86,45 @@ class HF_Embedder:
                 sentence_embeddings = sentence_embeddings.tolist()
                 
                 # Get a real index of each documents
-                index = range( (self.batch_size*batch_index) , min((self.batch_size*batch_index+8), len(documents)+1))
+                index = range( (self.batch_size*batch_index) , min((self.batch_size*batch_index+self.batch_size), len(documents)))
                 
                 for i, doc_index in enumerate(index):
                     documents[doc_index]['vector'] = sentence_embeddings[i]
+
+            # Release GPU memory
+            torch.cuda.empty_cache()
 
             return True
 
         except Exception as e:
             msg.warn(str(e))
 
+            # Release GPU memory
+            torch.cuda.empty_cache()
+
             return False
+        
+    
+    def embedding_query(
+            self,
+            query: str
+    ) -> List:
+        
+        tokenized_query = self.tokenizer([query], return_tensors='pt')
+        tokenized_query.to(self.device)
+
+        # Compute token embeddings
+        with torch.no_grad():
+            model_output = self.model(**tokenized_query)
+
+        # Perform pooling and Normalize embeddings
+        sentence_embeddings = self._mean_pooling(model_output, tokenized_query['attention_mask'])
+        sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
+
+        return sentence_embeddings.tolist()
+
+
+
 
     
 

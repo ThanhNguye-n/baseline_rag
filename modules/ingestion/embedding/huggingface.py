@@ -94,16 +94,11 @@ class Embedder:
             # Release GPU memory
             torch.cuda.empty_cache()
 
-            return True
+            return documents
 
         except Exception as e:
             msg.warn(str(e))
 
-            # Release GPU memory
-            torch.cuda.empty_cache()
-
-            return False
-        
     
     def embedding_query(
             self,
@@ -122,6 +117,7 @@ class Embedder:
         sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
 
         return sentence_embeddings.tolist()
+
 
 
 
